@@ -252,13 +252,17 @@ proxy-groups:
     expect(tunIn['address'], contains('fdfe:dcba:9876::1/126'));
     expect(tunIn['mtu'], 1500);
 
-    // 3. DNS: Fake-IP (sing-box 1.12+ modern schema)
+    // 3. DNS: Fake-IP (sing-box 1.12+ modern schema: default/final server cannot be fakeip)
     final dns = config['dns'] as Map<String, dynamic>;
-    expect(dns['final'], 'fakeip-dns');
+    expect(dns['final'], 'remote-dns');
     expect(dns['strategy'], 'prefer_ipv4');
     final fakeIpServer = (dns['servers'] as List).firstWhere((s) => s['tag'] == 'fakeip-dns');
     expect(fakeIpServer['type'], 'fakeip');
     expect(fakeIpServer['inet4_range'], '198.18.0.0/15');
+    final fakeIpRule = (dns['rules'] as List).firstWhere(
+      (r) => r['server'] == 'fakeip-dns' && r['query_type'] != null,
+    );
+    expect(fakeIpRule['query_type'], contains('A'));
 
     // 4. Route Rules: Sniff, Hijack DNS, AdBlock, AI, Streaming
     final rules = config['route']['rules'] as List;

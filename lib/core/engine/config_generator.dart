@@ -560,13 +560,6 @@ class ConfigGenerator {
     final bool directHasInterface =
         !settings.tunModeEnabled && proxyInterface != null;
     final List<Map<String, dynamic>> dnsServers = [];
-    if (settings.fakeIpEnabled) {
-      dnsServers.add({
-        'tag': 'fakeip-dns',
-        'type': 'fakeip',
-        'inet4_range': settings.fakeIpRange.isNotEmpty ? settings.fakeIpRange : '198.18.0.0/15',
-      });
-    }
     dnsServers.addAll([
       buildDnsServer('remote-dns', settings.remoteDns, detour: primaryProxyTag),
       buildDnsServer(
@@ -575,6 +568,13 @@ class ConfigGenerator {
         detour: directHasInterface ? 'direct' : null,
       ),
     ]);
+    if (settings.fakeIpEnabled) {
+      dnsServers.add({
+        'tag': 'fakeip-dns',
+        'type': 'fakeip',
+        'inet4_range': settings.fakeIpRange.isNotEmpty ? settings.fakeIpRange : '198.18.0.0/15',
+      });
+    }
 
     final List<Map<String, dynamic>> dnsRules = [];
 
@@ -641,6 +641,11 @@ class ConfigGenerator {
       {'rule_set': 'geosite-cn', 'server': 'local-dns'},
       {'clash_mode': 'Direct', 'server': 'local-dns'},
       {'clash_mode': 'Global', 'server': settings.fakeIpEnabled ? 'fakeip-dns' : 'remote-dns'},
+      if (settings.fakeIpEnabled)
+        {
+          'query_type': ['A', 'AAAA'],
+          'server': 'fakeip-dns',
+        },
     ]);
 
     final String? logPath = (configDir != null && configDir.isNotEmpty)
@@ -656,7 +661,7 @@ class ConfigGenerator {
       'dns': {
         'servers': dnsServers,
         'rules': dnsRules,
-        'final': settings.fakeIpEnabled ? 'fakeip-dns' : 'remote-dns',
+        'final': 'remote-dns',
         'strategy': settings.dnsStrategy,
       },
       'inbounds': inbounds,
