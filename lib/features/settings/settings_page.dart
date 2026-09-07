@@ -47,7 +47,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     final settings = ref.read(settingsProvider);
     _mixedPortCtrl = TextEditingController(text: settings.mixedPort.toString());
     _httpPortCtrl = TextEditingController(text: settings.httpPort.toString());
@@ -320,6 +320,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with SingleTickerPr
                   Tab(icon: const Icon(Icons.alt_route_rounded, size: 16), text: tr.tabRouting),
                   Tab(icon: const Icon(Icons.vpn_lock_rounded, size: 16), text: tr.tabTun),
                   Tab(icon: const Icon(Icons.science_rounded, size: 16), text: tr.tabAdvanced),
+                  Tab(icon: const Icon(Icons.system_update_alt_rounded, size: 16), text: tr.tabUpdates),
                 ],
               ),
             ),
@@ -335,6 +336,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with SingleTickerPr
                 _buildRoutingTab(context),
                 _buildTunTab(context),
                 _buildAdvancedTab(context),
+                _buildUpdatesTab(context),
               ],
             ),
           ),
@@ -458,8 +460,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with SingleTickerPr
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          _buildAppUpdateSection(context, appUpdaterState, settings, tr),
         ],
       ),
     );
@@ -854,8 +854,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with SingleTickerPr
               ],
             ),
           ),
-          const SizedBox(height: 24),
-          _buildGeoAssetsSection(context, geoState, tr),
         ],
       ),
     );
@@ -1183,50 +1181,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with SingleTickerPr
                 ),
                 const SizedBox(height: 14),
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF10B981)),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              '${tr.detectedCore}${_detectedVersion ?? "Detecting..."}',
-                              style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Color(0xFF94A3B8)),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: updaterState.isBusy
-                          ? null
-                          : () {
-                              ref.read(coreUpdaterProvider.notifier).checkForUpdates(
-                                    customBinaryPath: _binaryPathCtrl.text.isNotEmpty ? _binaryPathCtrl.text : null,
-                                  );
-                            },
-                      icon: updaterState.status == UpdateStatus.checking
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.system_update_alt_rounded, size: 16),
-                      label: Text(tr.btnCheckUpdate, style: const TextStyle(fontSize: 12)),
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    const Icon(Icons.verified_rounded, size: 16, color: Color(0xFF10B981)),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        '${tr.detectedCore}${_detectedVersion ?? "Detecting..."}',
+                        style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Color(0xFF94A3B8)),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
                 ),
-                if (updaterState.status != UpdateStatus.idle) ...[
-                  const SizedBox(height: 16),
-                  _buildUpdateStatusBanner(context, updaterState, tr),
-                ],
                 const SizedBox(height: 14),
                 Divider(height: 1, color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2)),
                 const SizedBox(height: 12),
@@ -1338,6 +1304,90 @@ class _SettingsPageState extends ConsumerState<SettingsPage> with SingleTickerPr
       content = Row(children: [const Icon(Icons.error_outline_rounded, size: 16, color: Color(0xFFF43F5E)), const SizedBox(width: 8), Expanded(child: Text(updaterState.errorMessage ?? updaterState.statusMessage, style: const TextStyle(fontSize: 12, color: Color(0xFFF43F5E))))]);
     }
     return Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12), decoration: BoxDecoration(color: bannerBg, borderRadius: BorderRadius.circular(10), border: Border.all(color: bannerBorder, width: 1)), child: content);
+  }
+
+  Widget _buildUpdatesTab(BuildContext context) {
+    final appUpdaterState = ref.watch(appUpdaterProvider);
+    final coreUpdaterState = ref.watch(coreUpdaterProvider);
+    final geoState = ref.watch(geoUpdaterProvider);
+    final settings = ref.watch(settingsProvider);
+    final tr = ref.watch(translationsProvider);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCoreUpdateSection(context, coreUpdaterState, tr),
+          const SizedBox(height: 24),
+          _buildAppUpdateSection(context, appUpdaterState, settings, tr),
+          const SizedBox(height: 24),
+          _buildGeoAssetsSection(context, geoState, tr),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoreUpdateSection(BuildContext context, CoreUpdaterState updaterState, Translations tr) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(tr.isZh ? 'SING-BOX 内核升级' : 'SING-BOX CORE UPDATE'),
+        DoubleBezelCard(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Icon(Icons.memory_rounded, size: 16, color: Color(0xFF10B981)),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            '${tr.detectedCore}${_detectedVersion ?? "Detecting..."}',
+                            style: const TextStyle(fontSize: 12, fontFamily: 'monospace', color: Color(0xFF94A3B8)),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: updaterState.isBusy
+                        ? null
+                        : () {
+                            ref.read(coreUpdaterProvider.notifier).checkForUpdates(
+                                  customBinaryPath: _binaryPathCtrl.text.isNotEmpty ? _binaryPathCtrl.text : null,
+                                );
+                          },
+                    icon: updaterState.status == UpdateStatus.checking
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.system_update_alt_rounded, size: 16),
+                    label: Text(tr.btnCheckUpdate, style: const TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                  ),
+                ],
+              ),
+              if (updaterState.status != UpdateStatus.idle) ...[
+                const SizedBox(height: 16),
+                _buildUpdateStatusBanner(context, updaterState, tr),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildAppUpdateSection(BuildContext context, AppUpdaterState appUpdaterState, AppSettings settings, Translations tr) {

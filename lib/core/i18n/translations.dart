@@ -281,6 +281,7 @@ class Translations {
   String get tabRouting => isZh ? '分流规则' : 'Routing';
   String get tabTun => isZh ? 'TUN 核心' : 'TUN Core';
   String get tabAdvanced => isZh ? '高级实验' : 'Advanced';
+  String get tabUpdates => isZh ? '更新中心' : 'Updates';
 
   // Settings New Options
   String get fakeIpTitle => isZh ? 'Fake-IP 模式' : 'Fake-IP Mode';

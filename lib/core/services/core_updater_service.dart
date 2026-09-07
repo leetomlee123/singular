@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
+import '../utils/app_logger.dart';
+import '../utils/proxy_dio_helper.dart';
 import 'storage_service.dart';
 
 class RemoteReleaseInfo {
@@ -30,6 +32,9 @@ class RemoteReleaseInfo {
 }
 
 class CoreUpdaterService {
+  static const repoApiUrl =
+      'https://api.github.com/repos/SagerNet/sing-box/releases/latest';
+
   final Dio _dio;
 
   CoreUpdaterService({Dio? dio})
@@ -37,7 +42,7 @@ class CoreUpdaterService {
             Dio(
               BaseOptions(
                 connectTimeout: const Duration(seconds: 15),
-                receiveTimeout: const Duration(seconds: 30),
+                receiveTimeout: const Duration(seconds: 60),
                 headers: {
                   'User-Agent': 'sing-box-ui-updater',
                   'Accept': 'application/vnd.github.v3+json',
@@ -45,16 +50,44 @@ class CoreUpdaterService {
               ),
             );
 
-  /// Check GitHub for the latest sing-box release
+  /// Configures local proxy port for downloading and API calls when core is running.
+  void setProxyPort(int? port) {
+    ProxyDioHelper.configureProxy(_dio, proxyPort: port);
+  }
+
+  /// Check GitHub for the latest sing-box release with proxy support and mirror fallbacks
   Future<RemoteReleaseInfo?> checkLatestRelease() async {
+    final apiUrls = [
+      repoApiUrl,
+      'https://ghproxy.net/$repoApiUrl',
+      'https://mirror.ghproxy.com/$repoApiUrl',
+    ];
+
+    Map<String, dynamic>? data;
+    String? lastError;
+    for (final url in apiUrls) {
+      try {
+        AppLogger.info('[CoreUpdater] 尝试请求 sing-box 版本源: $url');
+        final response = await _dio.get<Map<String, dynamic>>(url);
+        if (response.data != null && response.data!['tag_name'] != null) {
+          data = response.data;
+          AppLogger.info('[CoreUpdater] 成功获取内核版本信息，最新标签: ${data!['tag_name']}');
+          break;
+        }
+      } catch (e) {
+        lastError = e.toString();
+        AppLogger.warn('[CoreUpdater] 请求内核更新源失败 ($url): $e');
+      }
+    }
+
+    if (data == null) {
+      if (lastError != null) {
+        AppLogger.error('[CoreUpdater] 所有 sing-box GitHub Release 接口均访问失败: $lastError');
+      }
+      return null;
+    }
+
     try {
-      final response = await _dio.get<Map<String, dynamic>>(
-        'https://api.github.com/repos/SagerNet/sing-box/releases/latest',
-      );
-
-      final data = response.data;
-      if (data == null) return null;
-
       final tagName = (data['tag_name'] ?? '').toString();
       final version = tagName.startsWith('v') ? tagName.substring(1) : tagName;
       final releaseNotes = (data['body'] ?? '').toString();
@@ -89,7 +122,8 @@ class CoreUpdaterService {
         assetSize: int.tryParse((matchingAsset['size'] ?? '0').toString()) ?? 0,
         publishedAt: publishedAt,
       );
-    } catch (_) {
+    } catch (e) {
+      AppLogger.error('[CoreUpdater] 解析内核 Release 数据失败: $e');
       return null;
     }
   }
@@ -113,20 +147,39 @@ class CoreUpdaterService {
   }) async {
     onProgress(0.05, 'Connecting to download server...');
 
-    final response = await _dio.get<List<int>>(
+    final downloadCandidates = [
       downloadUrl,
-      options: Options(responseType: ResponseType.bytes),
-      onReceiveProgress: (received, total) {
-        if (total > 0) {
-          final progress = (received / total).clamp(0.05, 0.85);
-          onProgress(progress, 'Downloading: ${(received / (1024 * 1024)).toStringAsFixed(1)} MB / ${(total / (1024 * 1024)).toStringAsFixed(1)} MB');
-        }
-      },
-    );
+      'https://ghproxy.net/$downloadUrl',
+      'https://mirror.ghproxy.com/$downloadUrl',
+    ];
 
-    final bytes = response.data;
+    List<int>? bytes;
+    dynamic downloadErr;
+    for (final candidate in downloadCandidates) {
+      try {
+        AppLogger.info('[CoreUpdater] 尝试下载内核包: $candidate');
+        final response = await _dio.get<List<int>>(
+          candidate,
+          options: Options(responseType: ResponseType.bytes),
+          onReceiveProgress: (received, total) {
+            if (total > 0) {
+              final progress = (received / total).clamp(0.05, 0.85);
+              onProgress(progress, 'Downloading: ${(received / (1024 * 1024)).toStringAsFixed(1)} MB / ${(total / (1024 * 1024)).toStringAsFixed(1)} MB');
+            }
+          },
+        );
+        if (response.data != null && response.data!.isNotEmpty) {
+          bytes = response.data;
+          break;
+        }
+      } catch (e) {
+        downloadErr = e;
+        AppLogger.warn('[CoreUpdater] 下载源失败 ($candidate): $e');
+      }
+    }
+
     if (bytes == null || bytes.isEmpty) {
-      throw Exception('Downloaded binary archive is empty.');
+      throw Exception('Failed to download core archive: $downloadErr');
     }
 
     onProgress(0.88, 'Extracting core executable...');

@@ -779,11 +779,22 @@ class _VisualConfigEditorState extends State<VisualConfigEditor> with SingleTick
                   if (!['selector', 'urltest', 'direct', 'block', 'dns'].contains(selectedType)) {
                     updated['server'] = serverCtrl.text.trim();
                     updated['server_port'] = int.tryParse(portCtrl.text.trim()) ?? 443;
+                    final secretVal = uuidCtrl.text.trim();
                     if (selectedType == 'shadowsocks') {
-                      updated['password'] = uuidCtrl.text.trim();
+                      updated['password'] = secretVal;
                       updated['method'] = updated['method'] ?? '2022-blake3-aes-128-gcm';
+                      updated.remove('uuid');
+                    } else if (selectedType == 'hysteria2' || selectedType == 'hy2' || selectedType == 'trojan') {
+                      updated['password'] = secretVal;
+                      updated.remove('uuid');
+                    } else if (selectedType == 'vless' || selectedType == 'vmess') {
+                      updated['uuid'] = secretVal;
+                      updated.remove('password');
+                    } else if (selectedType == 'tuic') {
+                      updated['uuid'] = secretVal;
                     } else {
-                      updated['uuid'] = uuidCtrl.text.trim();
+                      updated['password'] = secretVal;
+                      updated.remove('uuid');
                     }
 
                     if (sniCtrl.text.trim().isNotEmpty || realityPbkCtrl.text.trim().isNotEmpty) {

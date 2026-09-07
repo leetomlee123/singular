@@ -252,12 +252,13 @@ proxy-groups:
     expect(tunIn['address'], contains('fdfe:dcba:9876::1/126'));
     expect(tunIn['mtu'], 1500);
 
-    // 3. DNS: Fake-IP
+    // 3. DNS: Fake-IP (sing-box 1.12+ modern schema)
     final dns = config['dns'] as Map<String, dynamic>;
     expect(dns['final'], 'fakeip-dns');
     expect(dns['strategy'], 'prefer_ipv4');
-    expect(dns['fakeip']['enabled'], isTrue);
-    expect(dns['fakeip']['inet4_range'], '198.18.0.0/15');
+    final fakeIpServer = (dns['servers'] as List).firstWhere((s) => s['tag'] == 'fakeip-dns');
+    expect(fakeIpServer['type'], 'fakeip');
+    expect(fakeIpServer['inet4_range'], '198.18.0.0/15');
 
     // 4. Route Rules: Sniff, Hijack DNS, AdBlock, AI, Streaming
     final rules = config['route']['rules'] as List;

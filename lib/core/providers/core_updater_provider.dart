@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/core_updater_service.dart';
 import '../utils/version_utils.dart';
 import 'core_provider.dart';
+import 'settings_provider.dart';
 
 enum UpdateStatus {
   idle,
@@ -65,7 +66,14 @@ class CoreUpdaterNotifier extends StateNotifier<CoreUpdaterState> {
 
   CoreUpdaterNotifier(this._ref) : super(CoreUpdaterState());
 
+  void _syncProxy() {
+    final isCoreRunning = _ref.read(coreProvider).isRunning;
+    final mixedPort = _ref.read(settingsProvider).mixedPort;
+    _updaterService.setProxyPort(isCoreRunning ? mixedPort : null);
+  }
+
   Future<void> checkForUpdates({String? customBinaryPath}) async {
+    _syncProxy();
     state = state.copyWith(
       status: UpdateStatus.checking,
       statusMessage: 'Checking for latest sing-box release...',
@@ -118,6 +126,8 @@ class CoreUpdaterNotifier extends StateNotifier<CoreUpdaterState> {
   Future<bool> startUpdate() async {
     final release = state.latestRelease;
     if (release == null) return false;
+
+    _syncProxy();
 
     state = state.copyWith(
       status: UpdateStatus.downloading,

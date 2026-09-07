@@ -230,10 +230,28 @@ class ConfigGenerator {
       }
     }
 
-    // 7. Inject TCP Fast Open and Multiplex for proxy outbounds
+    // 7. Inject TCP Fast Open and Multiplex for proxy outbounds, and sanitize invalid fields
     for (final ob in finalOutbounds) {
       final type = (ob['type'] ?? '').toString().toLowerCase();
       if (_proxyTypes.contains(type)) {
+        // Strict sing-box protocol field normalization:
+        // hysteria2, trojan, shadowsocks, socks, http DO NOT support 'uuid'
+        if (type == 'hysteria2' || type == 'hy2' || type == 'trojan' || type == 'shadowsocks' || type == 'ss' || type == 'socks' || type == 'http') {
+          if (ob.containsKey('uuid')) {
+            if ((ob['password'] == null || ob['password'].toString().isEmpty) && ob['uuid'] != null) {
+              ob['password'] = ob['uuid'];
+            }
+            ob.remove('uuid');
+          }
+        } else if (type == 'vless' || type == 'vmess') {
+          if (ob.containsKey('password')) {
+            if ((ob['uuid'] == null || ob['uuid'].toString().isEmpty) && ob['password'] != null) {
+              ob['uuid'] = ob['password'];
+            }
+            ob.remove('password');
+          }
+        }
+
         if (settings.tcpFastOpen) {
           ob['tcp_fast_open'] = true;
         }
@@ -546,6 +564,7 @@ class ConfigGenerator {
       dnsServers.add({
         'tag': 'fakeip-dns',
         'type': 'fakeip',
+        'inet4_range': settings.fakeIpRange.isNotEmpty ? settings.fakeIpRange : '198.18.0.0/15',
       });
     }
     dnsServers.addAll([
@@ -639,11 +658,6 @@ class ConfigGenerator {
         'rules': dnsRules,
         'final': settings.fakeIpEnabled ? 'fakeip-dns' : 'remote-dns',
         'strategy': settings.dnsStrategy,
-        if (settings.fakeIpEnabled)
-          'fakeip': {
-            'enabled': true,
-            'inet4_range': settings.fakeIpRange,
-          },
       },
       'inbounds': inbounds,
       'outbounds': finalOutbounds,
